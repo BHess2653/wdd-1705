@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 
 use App\Http\Requests;
 use Auth;
+use Session;
 
 class UserController extends Controller
 {
@@ -26,7 +27,15 @@ class UserController extends Controller
       ]);
       $user->save();
 
-      return redirect()->route('product.index');
+      Auth::login($user);
+
+      if (Session::has('oldUrl')) {
+          $oldUrl = Session::get('oldUrl');
+          Session::forget('oldUrl');
+          return redirect()->to($oldUrl);
+      }
+
+      return redirect()->route('user.profile');
     }
 
     public function getSignin() {
@@ -40,12 +49,28 @@ class UserController extends Controller
       ]);
 
       if (Auth::attempt(['email' => $request->input('email'), 'password' => $request->input('password')])) {
+        if (Session::has('oldUrl')) {
+            $oldUrl = Session::get('oldUrl');
+            Session::forget('oldUrl');
+            return redirect()->to($oldUrl);
+        }
         return redirect()->route('user.profile');
       }
       return redirect()->back();
     }
 
     public function getProfile() {
-      return view('user.profile');
+      $orders = Auth::user()->orders;
+      $orders->transform(function($order, $key) {
+          $order->cart = unserialize($order->cart);
+          return $order;
+      });
+      return view('user.profile', ['orders' => $orders]);
+    }
+
+    public function getLogout() {
+      Auth::logout();
+      return redirect()->route('user.signin');
+      // return redirect()->back()->with('message', 'You are now logged out!');
     }
 }
